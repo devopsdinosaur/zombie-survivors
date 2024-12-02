@@ -1,4 +1,7 @@
 ﻿using BepInEx.Configuration;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
 
 public class Settings {
     private static Settings m_instance = null;
@@ -20,6 +23,10 @@ public class Settings {
     public static ConfigEntry<float> m_fire_rate_multiplier;
     public static ConfigEntry<bool> m_infinite_ammo;
     public static ConfigEntry<bool> m_infinite_health;
+    public static ConfigEntry<bool> m_perpetual_magnet;
+
+    // Stats
+    public static Dictionary<PlayerStatistic.EType, ConfigEntry<float>> m_stat_multipliers = new Dictionary<PlayerStatistic.EType, ConfigEntry<float>>();
 
     public void load(DDPlugin plugin) {
         this.m_plugin = plugin;
@@ -30,7 +37,15 @@ public class Settings {
 
         // Cheats
         m_fire_rate_multiplier = this.m_plugin.Config.Bind<float>("Cheats", "Fire Rate Multiplier", 1.0f, "Multiplier applied to weapon fire rate (float, default 1 [no change]).");
-        m_infinite_ammo = this.m_plugin.Config.Bind<bool>("Cheats", "Infinite Ammo", false, "Set to true for infinite ammo.");
+        m_infinite_ammo = this.m_plugin.Config.Bind<bool>("Cheats", "Infinite Ammo", false, "Set to true for infinite ammo, i.e. no reload delays.");
         m_infinite_health = this.m_plugin.Config.Bind<bool>("Cheats", "Invincibility", false, "Set to true for player invincibility.");
+        m_perpetual_magnet = this.m_plugin.Config.Bind<bool>("Cheats", "Perpetual Magnet", false, "Set to true to have all collectible items (exp, cash, etc.) come immediately to player at all times.  This will override the 'TeamMagnetRange' stat multiplier.");
+        foreach (PlayerStatistic.EType stat in Enum.GetValues(typeof(PlayerStatistic.EType))) {
+            if (stat >= PlayerStatistic.EType.TeamHashtagFire) {
+                continue;
+            }
+            string name = Enum.GetName(typeof(PlayerStatistic.EType), stat);
+            m_stat_multipliers[stat] = this.m_plugin.Config.Bind<float>("Stats", "Stat Multiplier - " + name, 1f, $"Multiplier applied to the '{name}' statistic (float, default 1 [no change]).");
+        }
     }
 }

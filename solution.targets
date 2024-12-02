@@ -73,6 +73,16 @@
 
   <!-- Add game references -->
   <ItemGroup Label="_Data">
+    <Reference Include="Sonity.Public.Runtime">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>$(ManagedDataPath)\Sonity.Public.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Sonity.Runtime">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>$(ManagedDataPath)\Sonity.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Assembly-CSharp">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(ManagedDataPath)\Assembly-CSharp.dll</HintPath>

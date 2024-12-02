@@ -1,4 +1,5 @@
 ﻿using BepInEx;
+using BepInEx.Configuration;
 using HarmonyLib;
 using System;
 using System.Linq;
@@ -11,7 +12,7 @@ public static class PluginInfo {
 
 	public const string TITLE = "Easy Mode";
 	public const string NAME = "easy_mode";
-	public const string SHORT_DESCRIPTION = "Lots of configurable QoL tweaks and cheats to make the game easier (or even harder)!";
+	public const string SHORT_DESCRIPTION = "Lots of configurable QoL tweaks and cheats to make the game easier (or even harder)!  And more coming soon.";
 
 	public const string VERSION = "0.0.1";
 
@@ -84,7 +85,7 @@ public class EasyModePlugin : DDPlugin {
 	}
 
 	public class InfiniteAmmo {
-		private const float UPDATE_FREQUENCY = 0.5f;
+		private const float UPDATE_FREQUENCY = 0.1f;
 		private static float m_elapsed = UPDATE_FREQUENCY;
 		
 		[HarmonyPatch(typeof(WeaponController), "Update")]
@@ -146,4 +147,67 @@ public class EasyModePlugin : DDPlugin {
 		}
 	}
 
+	public class __Testing__ {
+
+		[HarmonyPatch(typeof(GamePlayer), "Awake")]
+		class HarmonyPatch_GamePlayer_Awake {
+			private static void Postfix(GamePlayer __instance) {
+				try {
+					foreach (PlayerStatisticsRuntime stats in Resources.FindObjectsOfTypeAll<PlayerStatisticsRuntime>()) {
+						foreach (KeyValuePair<PlayerStatistic.EType, ConfigEntry<float>> kvp in Settings.m_stat_multipliers) {
+							try {
+								PlayerStatistic stat = stats.GetStatistic(kvp.Key);
+								stat.SetValue(stat.GetValue() * (kvp.Key == PlayerStatistic.EType.TeamMagnetRange && Settings.m_perpetual_magnet.Value ? 99999f : kvp.Value.Value));
+								stat.SetDirty();
+							} catch {}
+						}
+					}
+				} catch (Exception e) {
+					_error_log("** HarmonyPatch_GamePlayer_Awake.Postfix ERROR - " + e);
+				}
+			}
+		}
+
+		[HarmonyPatch(typeof(GamePlayer), "Update")]
+		class HarmonyPatch_GamePlayer_Update {
+			private const float UPDATE_FREQUENCY = 5.0f;
+			private static float m_elapsed = UPDATE_FREQUENCY;
+
+			private static void Postfix(GamePlayer __instance) {
+				try {
+					if ((m_elapsed += Time.deltaTime) < UPDATE_FREQUENCY) {
+						return;
+					}
+					m_elapsed = 0;
+					_debug_log(".");
+					//foreach (LevelDefinition level_def in Resources.FindObjectsOfTypeAll<LevelDefinition>()) {
+					//	_debug_log("-");
+					//	foreach (GameModeDefinition game_mode_def in level_def.gameModeDefinitions) {
+					//		_debug_log($"duration: {game_mode_def.gameModeDuration}");
+					//	}
+					//}
+					
+				} catch (Exception e) {
+					_error_log("** __Testing__.HarmonyPatch_GamePlayer_Update.Postfix ERROR - " + e);
+				}
+			}
+		}
+
+		[HarmonyPatch(typeof(UIMainMenu), "Awake")]
+		class HarmonyPatch_UIMainMenu_Awake {
+			private static void Postfix(UIMainMenu __instance) {
+				try {
+					_debug_log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+					foreach (LevelDefinition level_def in Resources.FindObjectsOfTypeAll<LevelDefinition>()) {
+						_debug_log("-");
+						foreach (GameModeDefinition game_mode_def in level_def.gameModeDefinitions) {
+							_debug_log($"duration: {game_mode_def.gameModeDuration}");
+						}
+					}
+				} catch (Exception e) {
+					_error_log("** HarmonyPatch_UIMainMenu_Awake.Postfix ERROR - " + e);
+				}
+			}
+		}
+	}
 }
