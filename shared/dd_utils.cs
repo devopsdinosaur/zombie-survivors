@@ -11,6 +11,12 @@ using BepInEx.Configuration;
 using System.Runtime.InteropServices;
 
 public abstract class DDPlugin : BasePlugin {
+    protected static DDPlugin m_instance = null;
+    public static DDPlugin Instance { 
+        get {
+            return m_instance;
+        }
+    }
     protected Dictionary<string, string> m_plugin_info = null;
     protected static ManualLogSource logger;
     public enum LogLevel {
@@ -213,24 +219,39 @@ public static class UnityUtils {
         }
 
         void add_line(string text) {
-            lines.Add(tabbed_text(text));
+            string line = tabbed_text(text);
+            if (!string.IsNullOrEmpty(line)) {
+                lines.Add(line);
+            }
         }
 
         void add_obj(Transform transform, bool add_trailing_comma) {
+            if (transform == null) {
+                return;
+            }
             add_line("{");
             tab_count++;
             add_line($"\"name\": \"{transform.name}\",");
             add_line("\"components\": [");
             tab_count++;
-            lines.Add(string.Join(",\n", transform.GetComponents<Component>().Select(component => 
-                tabbed_text($"\"{component.GetIl2CppType().ToString()}\"")))
-            );
+            List<string> component_lines = new List<string>();
+            foreach (Component component in transform.GetComponents<Component>()) {
+                string component_type_string = component.GetIl2CppType().ToString();
+                if (!string.IsNullOrEmpty(component_type_string)) {
+                    component_lines.Add(tabbed_text($"\"{component_type_string}\""));
+                }
+            }
+            lines.Add(string.Join(",\n", component_lines));
             tab_count--;
             add_line("],");
             add_line("\"children\": [");
             tab_count++;
             for (int counter = 0; counter < transform.childCount; counter++) {
-                add_obj(transform.GetChild(counter), counter < transform.childCount - 1);
+                try {
+                    add_obj(transform.GetChild(counter), counter < transform.childCount - 1);
+                } catch {
+                    lines.Add($"# error jsonifying {transform.GetChild(counter).name}");
+                }
             }
             tab_count--;
             add_line("]");
@@ -568,3 +589,4 @@ public class PluginUpdater : MonoBehaviour {
         }
     }
 }
+
