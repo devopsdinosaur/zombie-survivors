@@ -44,6 +44,7 @@ public class EasyModePlugin : DDPlugin {
 			DDPlugin.set_log_level(Settings.m_log_level.Value);
 			this.create_nexus_page();
 			this.m_harmony.PatchAll();
+			Hotkeys.load();
 			logger.LogInfo($"{PluginInfo.GUID} v{PluginInfo.VERSION} loaded.");
 		} catch (Exception e) {
 			_error_log("** Load FATAL - " + e);
@@ -104,6 +105,41 @@ public class EasyModePlugin : DDPlugin {
 		}
 	}
 
+	public class StatsModifier {
+		private static PlayerStatistic m_exp_stat;
+		private static float m_exp_stat_value;
+		private static bool m_is_exp_enabled = true;
+
+		[HarmonyPatch(typeof(GamePlayer), "Awake")]
+		class HarmonyPatch_GamePlayer_Awake {
+			private static void Postfix(GamePlayer __instance) {
+				try {
+					foreach (PlayerStatisticsRuntime stats in Resources.FindObjectsOfTypeAll<PlayerStatisticsRuntime>()) {
+						foreach (KeyValuePair<PlayerStatistic.EType, ConfigEntry<float>> kvp in Settings.m_stat_multipliers) {
+							try {
+								PlayerStatistic stat = stats.GetStatistic(kvp.Key);
+								stat.SetValue(stat.GetValue() * (kvp.Key == PlayerStatistic.EType.TeamMagnetRange && Settings.m_perpetual_magnet.Value ? 99999f : kvp.Value.Value));
+								if (kvp.Key == PlayerStatistic.EType.TeamXPMultiplier) {
+									m_exp_stat = stat;
+									m_exp_stat_value = stat.GetValue();
+								}
+								stat.SetDirty();
+							} catch { }
+						}
+					}
+				} catch (Exception e) {
+					_error_log("** StatsModifier.HarmonyPatch_GamePlayer_Awake.Postfix ERROR - " + e);
+				}
+			}
+		}
+
+		public static void toggle_exp_gain() {
+			_debug_log("toggle_exp_gain");
+			m_exp_stat.SetValue(((m_is_exp_enabled = !m_is_exp_enabled) ? m_exp_stat_value : 0));
+			m_exp_stat.SetDirty();
+		}
+	}
+
 	public class WeaponModifier : MonoBehaviour {
 		private const float UPDATE_FREQUENCY = 1.0f;
 		private float m_elapsed = UPDATE_FREQUENCY;
@@ -149,25 +185,6 @@ public class EasyModePlugin : DDPlugin {
 
 	public class __Testing__ {
 
-		[HarmonyPatch(typeof(GamePlayer), "Awake")]
-		class HarmonyPatch_GamePlayer_Awake {
-			private static void Postfix(GamePlayer __instance) {
-				try {
-					foreach (PlayerStatisticsRuntime stats in Resources.FindObjectsOfTypeAll<PlayerStatisticsRuntime>()) {
-						foreach (KeyValuePair<PlayerStatistic.EType, ConfigEntry<float>> kvp in Settings.m_stat_multipliers) {
-							try {
-								PlayerStatistic stat = stats.GetStatistic(kvp.Key);
-								stat.SetValue(stat.GetValue() * (kvp.Key == PlayerStatistic.EType.TeamMagnetRange && Settings.m_perpetual_magnet.Value ? 99999f : kvp.Value.Value));
-								stat.SetDirty();
-							} catch {}
-						}
-					}
-				} catch (Exception e) {
-					_error_log("** HarmonyPatch_GamePlayer_Awake.Postfix ERROR - " + e);
-				}
-			}
-		}
-
 		[HarmonyPatch(typeof(GamePlayer), "Update")]
 		class HarmonyPatch_GamePlayer_Update {
 			private const float UPDATE_FREQUENCY = 5.0f;
@@ -192,22 +209,19 @@ public class EasyModePlugin : DDPlugin {
 				}
 			}
 		}
-
-		[HarmonyPatch(typeof(UIMainMenu), "Awake")]
-		class HarmonyPatch_UIMainMenu_Awake {
-			private static void Postfix(UIMainMenu __instance) {
+		
+		[HarmonyPatch(typeof(UpdateMaster), "OnUpdate")]
+		class HarmonyPatch_UpdateMaster_OnUpdate {
+			private static bool Prefix(UpdateMaster __instance, float dt) {
 				try {
-					_debug_log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-					foreach (LevelDefinition level_def in Resources.FindObjectsOfTypeAll<LevelDefinition>()) {
-						_debug_log("-");
-						foreach (GameModeDefinition game_mode_def in level_def.gameModeDefinitions) {
-							_debug_log($"duration: {game_mode_def.gameModeDuration}");
-						}
-					}
+					_debug_log(dt);
+					return false;
 				} catch (Exception e) {
-					_error_log("** HarmonyPatch_UIMainMenu_Awake.Postfix ERROR - " + e);
+					_error_log("** HarmonyPatch_UpdateMaster_OnUpdate.Prefix ERROR - " + e);
 				}
+				return true;
 			}
 		}
+		
 	}
 }
