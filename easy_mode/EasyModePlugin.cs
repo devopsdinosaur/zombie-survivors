@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using System.Diagnostics.Eventing.Reader;
 
 public static class PluginInfo {
 
@@ -51,7 +52,148 @@ public class EasyModePlugin : DDPlugin {
 		}
 	}
 
-	public class InfiniteHealth : MonoBehaviour {
+	public class __Global__ {
+		public static void popup_message(string main_text, Color color, float display_time = 3f, float scale = 25f, string lower_text = null) {
+            foreach (GameplayEventPopup popup in Resources.FindObjectsOfTypeAll<GameplayEventPopup>()) {
+                _debug_log($"popup message: {main_text}{(!string.IsNullOrEmpty(lower_text) ? $" (lower_text: {lower_text})" : "")}");
+				popup.AddPopup(new GameplayEventPopup.PopupData() {
+                    mainText = main_text,
+                    lowerText = lower_text,
+                    lowerPartActive = lower_text != null,
+                    color = color,
+                    visibilityTime = display_time,
+                    scale = scale
+                });
+				break;
+            }
+        }
+	}
+
+    public class AutoLevel {
+		public enum Mode {
+			Disabled,
+			Random,
+			Skip
+		}
+		private static readonly Dictionary<Mode, string> MODE_STRINGS = new Dictionary<Mode, string>() {
+			{Mode.Disabled, "Disabled"},
+			{Mode.Random, "Random"},
+			{Mode.Skip, "Skip"}
+		};
+		private static Mode m_current_mode = Mode.Random;
+
+        [HarmonyPatch(typeof(UIGameplayUpgradeSelection), "OnEnable")]
+        class HarmonyPatch_UIGameplayUpgradeSelection_OnEnable {
+            private static void Postfix(UIGameplayUpgradeSelection __instance) {
+                try {
+                    if (m_current_mode == Mode.Disabled || 
+						(!string.IsNullOrEmpty(__instance.powerupButtons[0].attachedPowerup?.nameLocalizationKey) && __instance.powerupButtons[0].attachedPowerup.nameLocalizationKey.StartsWith("UI/Hero_")) ||
+						__instance.powerupButtons[0].attachedItem != null
+					) {
+						return;
+					}
+
+					for (int index = 0; index < __instance.powerupButtons.Count; index++) {
+						PowerupBase powerup = __instance.powerupButtons[index].attachedPowerup;
+						if (powerup != null) {
+							_debug_log($"button[{index}][powerup] - nameLocalizationKey: {powerup.nameLocalizationKey}, char_type: {(powerup.targetClassProperties != null ? powerup.targetClassProperties.characterType : "none")}, isAbility: {powerup.isAbility}, removeFromPoolAfterUse: {powerup.removeFromPoolAfterUse}");
+						}
+					}
+					switch (m_current_mode) {
+						case Mode.Random:
+							UIPowerupButton button = __instance.powerupButtons[UnityEngine.Random.Range(0, __instance.powerupButtons.Count - 1)];
+							//__instance.OnPowerupButtonClicked(button);
+							bool applied = false;
+							_debug_log($"required_char_type: {button.attachedPowerup.targetClassProperties.characterType}");
+							foreach (GamePlayer player in Resources.FindObjectsOfTypeAll<GamePlayer>()) {
+								_debug_log($"player - name: {player.name}, type: {player.characterType}");
+								if (player.characterType == button.attachedPowerup.targetClassProperties.characterType) {
+									_debug_log("applying");
+									player.AddPowerup(button.attachedPowerup);
+									applied = true;
+									break;
+								}
+							}
+							if (applied) {
+								__instance.Hide(button);
+							}
+							break;
+						case Mode.Skip:
+							__instance.ApplySkipBonus();
+							__instance.Hide(null);
+							break;
+					}
+                } catch (Exception e) {
+                    _error_log("** AutoLevel.HarmonyPatch_UIGameplayUpgradeSelection_OnEnable.Prefix ERROR - " + e);
+                }
+            }
+        }
+
+		public static void set_mode(Mode mode) {
+			try {
+				m_current_mode = mode;
+				__Global__.popup_message($"Auto-level Mode = {MODE_STRINGS[mode]}", Color.white);
+            } catch (Exception e) {
+                _error_log("** AutoLevel.set_mode ERROR - " + e);
+            }
+        }
+    }
+
+    public class AutoMagnet : MonoBehaviour {
+		private static GamePlayer m_player;
+        private static float m_update_frequency;
+		private static CollectibleMagnet m_magnet;
+        private float m_elapsed = 0;
+
+        public static void create(DDPlugin plugin, GamePlayer player) {
+			m_player = player;
+			m_update_frequency = Mathf.Max(1f, Settings.m_automatic_magnet_frequency.Value);
+			m_magnet = null;
+			foreach (CollectibleMagnet magnet in Resources.FindObjectsOfTypeAll<CollectibleMagnet>()) {
+				m_magnet = magnet;
+				break;
+			}
+			if (m_magnet == null) {
+				_warn_log("* AutoMagnet.create WARNING - unable to locate CollectibleMagnet instance; disabling AutoMagnet functionality.");
+				return;
+			}
+			plugin.AddComponent<AutoMagnet>();
+        }
+
+        [HarmonyPatch(typeof(GamePlayer), "Awake")]
+        class HarmonyPatch_GamePlayer_Awake {
+            private static void Postfix(GamePlayer __instance) {
+                try {
+					if (Settings.m_enabled.Value && Settings.m_automatic_magnet_frequency.Value > 0) {
+						create(DDPlugin.Instance, __instance);
+					}
+                } catch (Exception e) {
+                    _error_log("** AutoMagnet.HarmonyPatch_GamePlayer_Awake.Postfix ERROR - " + e);
+                }
+            }
+        }
+
+        private void Update() {
+            try {
+                if ((this.m_elapsed += Time.deltaTime) < m_update_frequency) {
+                    return;
+                }
+                this.m_elapsed = 0;
+                m_magnet.onCollectSoundEvent = null;
+				m_magnet.OnCollect(m_player, true);
+            } catch (Exception e) {
+                _error_log("** InfiniteHealth.update ERROR - " + e);
+            }
+        }
+    }
+
+	public class DevTools {
+		public static void toggle_dev_tools() {
+            DeveloperTools.s_instance.ToggleVisibility();
+        }
+	}
+
+    public class InfiniteHealth : MonoBehaviour {
 		private const float UPDATE_FREQUENCY = 1.0f;
 		private float m_elapsed = UPDATE_FREQUENCY;
 		private Health m_health = null;
@@ -61,7 +203,18 @@ public class EasyModePlugin : DDPlugin {
 			instance.m_health = health;
 		}
 
-		[HarmonyPatch(typeof(GamePlayer), "Awake")]
+        [HarmonyPatch(typeof(CollectibleHealth), "MetSpawnCondition")]
+        class HarmonyPatch_CollectibleHealth_MetSpawnCondition {
+            private static bool Prefix(ref bool __result) {
+				if (!Settings.m_enabled.Value || !Settings.m_infinite_health.Value) {
+					return true;
+				}
+				__result = false;
+                return false;
+            }
+        }
+
+        [HarmonyPatch(typeof(GamePlayer), "Awake")]
 		class HarmonyPatch_GamePlayer_Awake {
 			private static void Postfix(GamePlayer __instance) {
 				try {
@@ -105,40 +258,93 @@ public class EasyModePlugin : DDPlugin {
 		}
 	}
 
-	public class StatsModifier {
-		private static PlayerStatistic m_exp_stat;
-		private static float m_exp_stat_value;
-		private static bool m_is_exp_enabled = true;
+	public class Spawner {
+		public static void spawn_sos() {
+            GameplayMaster.Get.currentGameMode.SpawnCharacterRescue();
+		}
+	}
 
-		[HarmonyPatch(typeof(GamePlayer), "Awake")]
+	public class StatsModifier : MonoBehaviour {
+        private const float UPDATE_FREQUENCY = 1.0f;
+        private float m_elapsed = UPDATE_FREQUENCY;
+        private static bool m_is_exp_enabled = true;
+		private static Dictionary<PlayerStatistic, float> m_base_values;
+
+        [HarmonyPatch(typeof(GamePlayer), "Awake")]
 		class HarmonyPatch_GamePlayer_Awake {
 			private static void Postfix(GamePlayer __instance) {
 				try {
+					if (!Settings.m_enabled.Value) {
+						return;
+					}
+					m_base_values = new Dictionary<PlayerStatistic, float>();
 					foreach (PlayerStatisticsRuntime stats in Resources.FindObjectsOfTypeAll<PlayerStatisticsRuntime>()) {
-						foreach (KeyValuePair<PlayerStatistic.EType, ConfigEntry<float>> kvp in Settings.m_stat_multipliers) {
+                        foreach (KeyValuePair<PlayerStatistic.EType, ConfigEntry<float>> kvp in Settings.m_stat_multipliers) {
 							try {
 								PlayerStatistic stat = stats.GetStatistic(kvp.Key);
-								stat.SetValue(stat.GetValue() * (kvp.Key == PlayerStatistic.EType.TeamMagnetRange && Settings.m_perpetual_magnet.Value ? 99999f : kvp.Value.Value));
-								if (kvp.Key == PlayerStatistic.EType.TeamXPMultiplier) {
-									m_exp_stat = stat;
-									m_exp_stat_value = stat.GetValue();
-								}
+                                m_base_values[stat] = stat.GetValue() * kvp.Value.Value;
+								stat.SetValue(m_base_values[stat]);
 								stat.SetDirty();
 							} catch { }
 						}
 					}
+					DDPlugin.Instance.AddComponent<StatsModifier>();
 				} catch (Exception e) {
 					_error_log("** StatsModifier.HarmonyPatch_GamePlayer_Awake.Postfix ERROR - " + e);
 				}
 			}
 		}
 
+		private void Update() {
+            try {
+				if (!(Settings.m_enabled.Value && (this.m_elapsed += Time.deltaTime) >= UPDATE_FREQUENCY)) {
+					return;
+				}
+				m_elapsed = 0;
+				foreach (KeyValuePair<PlayerStatistic, float> kvp in m_base_values) {
+                    float delta = kvp.Value - kvp.Key.GetValue();
+					if (delta > 0) {
+						kvp.Key.SetValue(kvp.Value);
+						kvp.Key.SetDirty();
+					} else if (delta < 0) {
+						m_base_values[kvp.Key] = kvp.Key.GetValue();
+					}
+                }
+            } catch (Exception e) {
+                _error_log("** StatsModifier.Update ERROR - " + e);
+            }
+        }
+
 		public static void toggle_exp_gain() {
-			_debug_log("toggle_exp_gain");
-			m_exp_stat.SetValue(((m_is_exp_enabled = !m_is_exp_enabled) ? m_exp_stat_value : 0));
-			m_exp_stat.SetDirty();
+            m_is_exp_enabled = !m_is_exp_enabled;
 		}
-	}
+
+        [HarmonyPatch(typeof(ExperienceProgress), "CollectXP")]
+        class HarmonyPatch_ExperienceProgress_CollectXP {
+            private static bool Prefix(ref long value) {
+				if (Settings.m_enabled.Value && !m_is_exp_enabled) {
+					value = 0;
+				}
+				return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(PlayerStatistic), "GetBaseValue")]
+        class HarmonyPatch_PlayerStatistic_GetBaseValue {
+            private static bool Prefix(PlayerStatistic __instance, ref float __result) {
+                try {
+					if (!Settings.m_enabled.Value) {
+						return true;
+					}
+					__result = m_base_values[__instance];
+					return false;
+                } catch (Exception e) {
+                    _error_log("** StatsModifier.HarmonyPatch_PlayerStatistic_GetBaseValue.Prefix ERROR - " + e);
+                }
+                return true;
+            }
+        }
+    }
 
 	public class WeaponModifier : MonoBehaviour {
 		private const float UPDATE_FREQUENCY = 1.0f;
@@ -197,29 +403,12 @@ public class EasyModePlugin : DDPlugin {
 					}
 					m_elapsed = 0;
 					_debug_log(".");
-					//foreach (LevelDefinition level_def in Resources.FindObjectsOfTypeAll<LevelDefinition>()) {
-					//	_debug_log("-");
-					//	foreach (GameModeDefinition game_mode_def in level_def.gameModeDefinitions) {
-					//		_debug_log($"duration: {game_mode_def.gameModeDuration}");
-					//	}
-					//}
+					
+					
 					
 				} catch (Exception e) {
 					_error_log("** __Testing__.HarmonyPatch_GamePlayer_Update.Postfix ERROR - " + e);
 				}
-			}
-		}
-		
-		[HarmonyPatch(typeof(UpdateMaster), "OnUpdate")]
-		class HarmonyPatch_UpdateMaster_OnUpdate {
-			private static bool Prefix(UpdateMaster __instance, float dt) {
-				try {
-					_debug_log(dt);
-					return false;
-				} catch (Exception e) {
-					_error_log("** HarmonyPatch_UpdateMaster_OnUpdate.Prefix ERROR - " + e);
-				}
-				return true;
 			}
 		}
 		

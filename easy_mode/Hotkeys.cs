@@ -13,12 +13,22 @@ class Hotkeys : MonoBehaviour {
     }
     private const int HOTKEY_MODIFIER = 0;
     private const int HOTKEY_TOGGLE_EXP = 1;
+    private const int HOTKEY_TOGGLE_DEV_TOOLS = 2;
+    private const int HOTKEY_AUTOLEVEL_NONE = 3;
+    private const int HOTKEY_AUTOLEVEL_RANDOM = 4;
+    private const int HOTKEY_AUTOLEVEL_SKIP = 5;
+    private const int HOTKEY_SPAWN_SOS = 6;
     private static Dictionary<int, List<KeyCode>> m_hotkeys = null;
 
     public static void load() {
         m_hotkeys = new Dictionary<int, List<KeyCode>>();
         set_hotkey(Settings.m_hotkey_modifier.Value, HOTKEY_MODIFIER);
         set_hotkey(Settings.m_hotkey_toggle_exp.Value, HOTKEY_TOGGLE_EXP);
+        set_hotkey(Settings.m_hotkey_toggle_dev_tools.Value, HOTKEY_TOGGLE_DEV_TOOLS);
+        set_hotkey(Settings.m_hotkey_auto_level_none.Value, HOTKEY_AUTOLEVEL_NONE);
+        set_hotkey(Settings.m_hotkey_auto_level_random.Value, HOTKEY_AUTOLEVEL_RANDOM);
+        set_hotkey(Settings.m_hotkey_auto_level_skip.Value, HOTKEY_AUTOLEVEL_SKIP);
+        set_hotkey(Settings.m_hotkey_spawn_sos.Value, HOTKEY_SPAWN_SOS);
         DDPlugin.Instance.AddComponent<Hotkeys>();
     }
 
@@ -59,6 +69,16 @@ class Hotkeys : MonoBehaviour {
         }
         if (is_hotkey_down(HOTKEY_TOGGLE_EXP)) {
             EasyModePlugin.StatsModifier.toggle_exp_gain();
+        } else if (is_hotkey_down(HOTKEY_TOGGLE_DEV_TOOLS)) {
+            EasyModePlugin.DevTools.toggle_dev_tools();
+        } else if (is_hotkey_down(HOTKEY_AUTOLEVEL_NONE)) {
+            EasyModePlugin.AutoLevel.set_mode(EasyModePlugin.AutoLevel.Mode.Disabled);
+        } else if (is_hotkey_down(HOTKEY_AUTOLEVEL_RANDOM)) {
+            EasyModePlugin.AutoLevel.set_mode(EasyModePlugin.AutoLevel.Mode.Random);
+        } else if (is_hotkey_down(HOTKEY_AUTOLEVEL_SKIP)) {
+            EasyModePlugin.AutoLevel.set_mode(EasyModePlugin.AutoLevel.Mode.Skip);
+        } else if (is_hotkey_down(HOTKEY_SPAWN_SOS)) {
+            EasyModePlugin.Spawner.spawn_sos();
         }
     }
 }
