@@ -36,6 +36,7 @@ public class Settings {
     public static ConfigEntry<string> m_hotkey_auto_level_random;
     public static ConfigEntry<string> m_hotkey_auto_level_skip;
     public static ConfigEntry<string> m_hotkey_spawn_sos;
+    public static ConfigEntry<string> m_hotkey_spawn_chest;
 
     private string hotkey_description(string unique) {
         const bool IS_MODIFIER_AVAILABLE = true;
@@ -72,5 +73,6 @@ public class Settings {
         m_hotkey_auto_level_random = this.m_plugin.Config.Bind<string>("Hotkeys", "Hotkey - Auto-level Mode - Random", "F2", hotkey_description("automatically select a random skill (Vampire Survivors style) when leveling up"));
         m_hotkey_auto_level_skip = this.m_plugin.Config.Bind<string>("Hotkeys", "Hotkey - Auto-level Mode - Skip", "F3", hotkey_description("automatically skip level-up skill selection and take the cash"));
         m_hotkey_spawn_sos = this.m_plugin.Config.Bind<string>("Hotkeys", "Hotkey - Spawn - Character Rescue", "F4", hotkey_description("spawn a character rescue event"));
+        m_hotkey_spawn_chest = this.m_plugin.Config.Bind<string>("Hotkeys", "Hotkey - Spawn - Item Chest", "F5", hotkey_description("spawn an item chest"));
     }
 }

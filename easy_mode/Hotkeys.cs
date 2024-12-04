@@ -18,6 +18,7 @@ class Hotkeys : MonoBehaviour {
     private const int HOTKEY_AUTOLEVEL_RANDOM = 4;
     private const int HOTKEY_AUTOLEVEL_SKIP = 5;
     private const int HOTKEY_SPAWN_SOS = 6;
+    private const int HOTKEY_SPAWN_CHEST = 7;
     private static Dictionary<int, List<KeyCode>> m_hotkeys = null;
 
     public static void load() {
@@ -29,6 +30,7 @@ class Hotkeys : MonoBehaviour {
         set_hotkey(Settings.m_hotkey_auto_level_random.Value, HOTKEY_AUTOLEVEL_RANDOM);
         set_hotkey(Settings.m_hotkey_auto_level_skip.Value, HOTKEY_AUTOLEVEL_SKIP);
         set_hotkey(Settings.m_hotkey_spawn_sos.Value, HOTKEY_SPAWN_SOS);
+        set_hotkey(Settings.m_hotkey_spawn_chest.Value, HOTKEY_SPAWN_CHEST);
         DDPlugin.Instance.AddComponent<Hotkeys>();
     }
 
@@ -79,6 +81,8 @@ class Hotkeys : MonoBehaviour {
             EasyModePlugin.AutoLevel.set_mode(EasyModePlugin.AutoLevel.Mode.Skip);
         } else if (is_hotkey_down(HOTKEY_SPAWN_SOS)) {
             EasyModePlugin.Spawner.spawn_sos();
+        } else if (is_hotkey_down(HOTKEY_SPAWN_CHEST)) {
+            EasyModePlugin.Spawner.spawn_chest();
         }
     }
 }

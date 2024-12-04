@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using System.Diagnostics.Eventing.Reader;
+using UnityEngine.UIElements;
 
 public static class PluginInfo {
 
@@ -15,7 +16,7 @@ public static class PluginInfo {
 	public const string NAME = "easy_mode";
 	public const string SHORT_DESCRIPTION = "Lots of configurable QoL tweaks and cheats to make the game easier (or even harder)!  And more coming soon.";
 
-	public const string VERSION = "0.0.1";
+	public const string VERSION = "0.0.2";
 
 	public const string AUTHOR = "devopsdinosaur";
 	public const string GAME_TITLE = "Yet Another Zombie Survivors";
@@ -80,7 +81,7 @@ public class EasyModePlugin : DDPlugin {
 			{Mode.Random, "Random"},
 			{Mode.Skip, "Skip"}
 		};
-		private static Mode m_current_mode = Mode.Random;
+		private static Mode m_current_mode = Mode.Disabled;
 
         [HarmonyPatch(typeof(UIGameplayUpgradeSelection), "OnEnable")]
         class HarmonyPatch_UIGameplayUpgradeSelection_OnEnable {
@@ -92,31 +93,14 @@ public class EasyModePlugin : DDPlugin {
 					) {
 						return;
 					}
-
-					for (int index = 0; index < __instance.powerupButtons.Count; index++) {
-						PowerupBase powerup = __instance.powerupButtons[index].attachedPowerup;
-						if (powerup != null) {
-							_debug_log($"button[{index}][powerup] - nameLocalizationKey: {powerup.nameLocalizationKey}, char_type: {(powerup.targetClassProperties != null ? powerup.targetClassProperties.characterType : "none")}, isAbility: {powerup.isAbility}, removeFromPoolAfterUse: {powerup.removeFromPoolAfterUse}");
-						}
-					}
 					switch (m_current_mode) {
 						case Mode.Random:
 							UIPowerupButton button = __instance.powerupButtons[UnityEngine.Random.Range(0, __instance.powerupButtons.Count - 1)];
-							//__instance.OnPowerupButtonClicked(button);
-							bool applied = false;
-							_debug_log($"required_char_type: {button.attachedPowerup.targetClassProperties.characterType}");
-							foreach (GamePlayer player in Resources.FindObjectsOfTypeAll<GamePlayer>()) {
-								_debug_log($"player - name: {player.name}, type: {player.characterType}");
-								if (player.characterType == button.attachedPowerup.targetClassProperties.characterType) {
-									_debug_log("applying");
-									player.AddPowerup(button.attachedPowerup);
-									applied = true;
-									break;
-								}
-							}
-							if (applied) {
-								__instance.Hide(button);
-							}
+							GameplayMaster.Get.AddPowerup(button.attachedPowerup);
+							try {
+								button.attachedPowerup.OnApply();
+							} catch {}
+							__instance.Hide(button);
 							break;
 						case Mode.Skip:
 							__instance.ApplySkipBonus();
@@ -203,18 +187,29 @@ public class EasyModePlugin : DDPlugin {
 			instance.m_health = health;
 		}
 
-        [HarmonyPatch(typeof(CollectibleHealth), "MetSpawnCondition")]
-        class HarmonyPatch_CollectibleHealth_MetSpawnCondition {
-            private static bool Prefix(ref bool __result) {
+		[HarmonyPatch(typeof(CollectibleHealth), "ShouldBeMagnetCollected")]
+		class HarmonyPatch_CollectibleHealth_ShouldBeMagnetCollected {
+			private static bool Prefix(ref bool __result) {
 				if (!Settings.m_enabled.Value || !Settings.m_infinite_health.Value) {
 					return true;
 				}
-				__result = false;
-                return false;
-            }
-        }
+				__result = true;
+				return false;
+			}
+		}
 
-        [HarmonyPatch(typeof(GamePlayer), "Awake")]
+		[HarmonyPatch(typeof(CollectibleHealth), "AdditionalCollectCondition")]
+		class HarmonyPatch_CollectibleHealth_AdditionalCollectCondition {
+			private static bool Prefix(ref bool __result) {
+				if (!Settings.m_enabled.Value || !Settings.m_infinite_health.Value) {
+					return true;
+				}
+				__result = true;
+				return false;
+			}
+		}
+
+		[HarmonyPatch(typeof(GamePlayer), "Awake")]
 		class HarmonyPatch_GamePlayer_Awake {
 			private static void Postfix(GamePlayer __instance) {
 				try {
@@ -259,6 +254,11 @@ public class EasyModePlugin : DDPlugin {
 	}
 
 	public class Spawner {
+		public static void spawn_chest() {
+			_debug_log("spawn chest");
+			GameplayMaster.Get.currentGameMode.SpawnItemChest();
+		}
+
 		public static void spawn_sos() {
             GameplayMaster.Get.currentGameMode.SpawnCharacterRescue();
 		}
@@ -402,15 +402,12 @@ public class EasyModePlugin : DDPlugin {
 						return;
 					}
 					m_elapsed = 0;
-					_debug_log(".");
-					
-					
+					//_debug_log(".");
 					
 				} catch (Exception e) {
 					_error_log("** __Testing__.HarmonyPatch_GamePlayer_Update.Postfix ERROR - " + e);
 				}
 			}
 		}
-		
 	}
 }
