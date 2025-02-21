@@ -16,7 +16,7 @@ public static class PluginInfo {
 	public const string NAME = "easy_mode";
 	public const string SHORT_DESCRIPTION = "Lots of configurable QoL tweaks and cheats to make the game easier (or even harder)!  And more coming soon.";
 
-	public const string VERSION = "0.0.2";
+	public const string VERSION = "0.0.3";
 
 	public const string AUTHOR = "devopsdinosaur";
 	public const string GAME_TITLE = "Yet Another Zombie Survivors";
@@ -54,6 +54,17 @@ public class EasyModePlugin : DDPlugin {
 	}
 
 	public class __Global__ {
+		[HarmonyPatch(typeof(DeveloperTools), "Awake")]
+		class HarmonyPatch_DeveloperTools_Awake {
+			private static void Postfix() {
+				try {
+					DeveloperTools.HelperBool = Settings.m_enabled.Value;
+				} catch (Exception e) {
+					_error_log("** __Global__.HarmonyPatch_DeveloperTools_Awake.Postfix ERROR - " + e);
+				}
+			}
+		}
+
 		public static void popup_message(string main_text, Color color, float display_time = 3f, float scale = 25f, string lower_text = null) {
             foreach (GameplayEventPopup popup in Resources.FindObjectsOfTypeAll<GameplayEventPopup>()) {
                 _debug_log($"popup message: {main_text}{(!string.IsNullOrEmpty(lower_text) ? $" (lower_text: {lower_text})" : "")}");
